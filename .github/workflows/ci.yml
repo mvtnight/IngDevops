@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build-and-test:
@@ -16,32 +13,38 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Necesario para SonarCloud
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt pytest pytest-cov
+
+      - name: Ejecutar Tests y Cobertura
+        run: pytest --cov=. --cov-report=xml
+
       - name: Escaneo de SonarCloud
         uses: SonarSource/sonarcloud-github-action@master
         env:
-            # Este token ya viene por defecto en GitHub
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   deploy-ec2:
-    name: Despliegue en AWS EC2 (IE2)
+    name: Despliegue en AWS EC2 (IE2 e IE3)
     runs-on: ubuntu-latest
-    needs: build-and-test # ESTO ES VITAL: Solo se despliega si SonarCloud pasa las pruebas (IE6)
-    if: github.ref == 'refs/heads/main' # Solo despliega si es la rama main
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Desplegar en EC2 via SSH
+      - name: Desplegar en EC2 y enviar métricas a CloudWatch
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-         script: |
+          script: |
             # 1. Marcamos el tiempo de inicio
             START_TIME=$(date +%s)
 
@@ -50,7 +53,7 @@ jobs:
             sudo yum install docker git -y
             sudo systemctl start docker
             sudo systemctl enable docker
-            
+
             # Instalar Docker Compose
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
@@ -61,11 +64,11 @@ jobs:
             fi
             cd mi-proyecto-devops
             git pull origin main
-            
+
             # 3. Levantamos el microservicio con Docker
             sudo /usr/local/bin/docker-compose down
             sudo /usr/local/bin/docker-compose up -d --build
-            
+
             # 4. Calculamos el tiempo total de despliegue
             END_TIME=$(date +%s)
             DEPLOY_TIME=$((END_TIME - START_TIME))
