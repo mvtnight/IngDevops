@@ -26,7 +26,7 @@ jobs:
       - name: Escaneo de SonarCloud
         uses: SonarSource/sonarcloud-github-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Este token ya viene por defecto en GitHub
+            # Este token ya viene por defecto en GitHub
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   deploy-ec2:
@@ -41,22 +41,40 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # Instalamos docker y git si no están (útil para la primera vez)
+         script: |
+            # 1. Marcamos el tiempo de inicio
+            START_TIME=$(date +%s)
+
+            # Instalar Docker y Git en Amazon Linux (Capa Gratuita)
             sudo yum update -y
-            sudo yum install docker git -y || sudo apt update && sudo apt install docker.io git -y
+            sudo yum install docker git -y
             sudo systemctl start docker
             sudo systemctl enable docker
+            
+            # Instalar Docker Compose
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
-            
-            # Clonamos o actualizamos el repositorio
+
+            # 2. Actualizamos el repositorio
             if [ ! -d "mi-proyecto-devops" ]; then
               git clone https://github.com/${{ github.repository }}.git mi-proyecto-devops
             fi
             cd mi-proyecto-devops
             git pull origin main
             
-            # Levantamos el microservicio con logs hacia CloudWatch
+            # 3. Levantamos el microservicio con Docker
             sudo /usr/local/bin/docker-compose down
             sudo /usr/local/bin/docker-compose up -d --build
+            
+            # 4. Calculamos el tiempo total de despliegue
+            END_TIME=$(date +%s)
+            DEPLOY_TIME=$((END_TIME - START_TIME))
+            echo "El despliegue tardó $DEPLOY_TIME segundos."
+
+            # 5. IE3: Enviamos la métrica de Tiempo de Despliegue a CloudWatch
+            aws cloudwatch put-metric-data \
+              --region us-east-1 \
+              --namespace "DevOps/CI-CD" \
+              --metric-name "TiempoDespliegue" \
+              --value $DEPLOY_TIME \
+              --unit Seconds
