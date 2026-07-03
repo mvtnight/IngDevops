@@ -9,7 +9,7 @@ COPY requirements.txt requirements.txt
 COPY app.py app.py
 
 # Instalamos las dependencias
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: -r requirements.txt
 
 # Exponemos el puerto
 EXPOSE 5000
