@@ -27,7 +27,7 @@ jobs:
         run: pytest --cov=. --cov-report=xml
 
       - name: Escaneo de SonarCloud
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -48,15 +48,11 @@ jobs:
             # 1. Marcamos el tiempo de inicio
             START_TIME=$(date +%s)
 
-            # Instalar Docker y Git en Amazon Linux (Capa Gratuita)
-            sudo yum update -y
-            sudo yum install docker git -y
+            # Actualizar e instalar Docker, Compose y AWS CLI nativamente en Ubuntu
+            sudo apt-get update -y
+            sudo apt-get install docker.io docker-compose git awscli -y
             sudo systemctl start docker
             sudo systemctl enable docker
-
-            # Instalar Docker Compose
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
 
             # 2. Actualizamos el repositorio
             if [ ! -d "mi-proyecto-devops" ]; then
@@ -66,8 +62,8 @@ jobs:
             git pull origin master
 
             # 3. Levantamos el microservicio con Docker
-            sudo /usr/local/bin/docker-compose down
-            sudo /usr/local/bin/docker-compose up -d --build
+            sudo docker-compose down
+            sudo docker-compose up -d --build
 
             # 4. Calculamos el tiempo total de despliegue
             END_TIME=$(date +%s)
